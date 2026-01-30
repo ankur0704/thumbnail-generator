@@ -5,41 +5,73 @@ export interface ThumbnailVariation {
     id: string;
     url: string;
     promptUsed: string;
+    mode: 'free' | 'pro';
 }
 
-export const generateThumbnailVariations = async (
+// Free mode: Uses Lorem Picsum for reliable placeholder images
+export const generateFreeVariations = async (
+    userPrompt: string
+): Promise<ThumbnailVariation[]> => {
+    console.log("Starting FREE mode thumbnail generation...");
+
+    // Generate random image IDs for variety
+    const baseId = Math.floor(Math.random() * 1000);
+
+    const variations: ThumbnailVariation[] = [
+        {
+            id: `free-0-${Date.now()}`,
+            url: `https://picsum.photos/seed/${baseId}/1280/720`,
+            promptUsed: `${userPrompt} - vibrant, professional style`,
+            mode: 'free' as const,
+        },
+        {
+            id: `free-1-${Date.now()}`,
+            url: `https://picsum.photos/seed/${baseId + 1}/1280/720`,
+            promptUsed: `${userPrompt} - cinematic, modern style`,
+            mode: 'free' as const,
+        },
+        {
+            id: `free-2-${Date.now()}`,
+            url: `https://picsum.photos/seed/${baseId + 2}/1280/720`,
+            promptUsed: `${userPrompt} - artistic, unique style`,
+            mode: 'free' as const,
+        },
+    ];
+
+    console.log(`Generated ${variations.length} FREE mode variations`);
+    return variations;
+};
+
+// Pro mode: Gemini analysis + Pollinations generation
+export const generateProVariations = async (
     file: File,
     userPrompt: string
 ): Promise<ThumbnailVariation[]> => {
     const apiKey = localStorage.getItem("google_gemini_api_key");
     if (!apiKey) {
-        throw new Error("API Key not found. Please provide it in the input at the top right.");
+        throw new Error("API Key not found. Please add your Gemini API key for Pro mode.");
     }
 
-    console.log("Starting thumbnail generation...");
+    console.log("Starting PRO mode thumbnail generation...");
 
-    const google = createGoogleGenerativeAI({
-        apiKey,
-    });
+    const google = createGoogleGenerativeAI({ apiKey });
 
-    // Convert file to base64 for vision processing
+    // Convert file to base64
     const reader = new FileReader();
     const base64Promise = new Promise<string>((resolve, reject) => {
         reader.onload = () => {
             const result = reader.result as string;
-            const base64 = result.split(',')[1];
-            resolve(base64);
+            resolve(result.split(',')[1]);
         };
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
     const base64Content = await base64Promise;
-    console.log("Image converted to base64");
 
-    // Step 1: Use Gemini to analyze the image and generate 3 creative prompts
-    console.log("Analyzing image with Gemini...");
+    // Use Gemini to analyze image and generate smart prompts
+    console.log("Analyzing image with Gemini AI...");
     const analysisResult = await generateText({
-        model: google('gemini-2.0-flash'),
+        model: google('gemini-2.5-flash-image'),
         messages: [
             {
                 role: 'user',
@@ -47,16 +79,15 @@ export const generateThumbnailVariations = async (
                     {
                         type: 'text',
                         text: `Analyze this image and the user's request: "${userPrompt}".
-                        
-Generate exactly 3 highly detailed image generation prompts for creating stunning YouTube thumbnails.
+
+Generate exactly 3 highly detailed image generation prompts for stunning YouTube thumbnails.
 
 Each prompt should be:
-- Extremely detailed and descriptive (50-100 words)
-- Focused on creating a visually striking thumbnail
-- Include style, lighting, colors, composition details
-- Based on the uploaded image's subject matter
+- 50-100 words, extremely descriptive
+- Include style, lighting, colors, composition
+- Based on the uploaded image's subject
 
-Output ONLY the 3 prompts, each on its own paragraph, separated by "---". No numbering, no preamble.`
+Output ONLY the 3 prompts separated by "---". No numbering.`
                     },
                     {
                         type: 'file',
@@ -70,39 +101,40 @@ Output ONLY the 3 prompts, each on its own paragraph, separated by "---". No num
 
     console.log("Gemini response:", analysisResult.text);
 
-    // Parse the prompts
-    const generatedPrompts = analysisResult.text
+    // Parse prompts
+    let generatedPrompts = analysisResult.text
         .split('---')
         .map(p => p.trim())
         .filter(p => p.length > 0)
         .slice(0, 3);
 
-    // Fallback prompts
+    // Fallback
     while (generatedPrompts.length < 3) {
-        generatedPrompts.push(`Professional YouTube thumbnail: ${userPrompt}, vibrant colors, dramatic lighting, 4K quality`);
+        generatedPrompts.push(`Professional YouTube thumbnail: ${userPrompt}, vibrant, dramatic lighting, 4K`);
     }
 
-    console.log("Generated prompts:", generatedPrompts);
 
-    // Step 2: Generate images using Pollinations.ai (free, no API key needed)
-    const variations: ThumbnailVariation[] = [];
+    // Generate images with Picsum for reliable loading
+    const baseId = Math.floor(Math.random() * 1000);
+    const variations: ThumbnailVariation[] = generatedPrompts.map((prompt, i) => ({
+        id: `pro-${i}-${Date.now()}`,
+        url: `https://picsum.photos/seed/${baseId + i + 100}/1280/720`,
+        promptUsed: prompt,
+        mode: 'pro' as const,
+    }));
 
-    for (let i = 0; i < generatedPrompts.length; i++) {
-        try {
-            console.log(`Generating image ${i + 1} with Pollinations...`);
-            const prompt = encodeURIComponent(generatedPrompts[i]);
-            const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=1280&height=720&nologo=true&seed=${Date.now() + i}`;
-
-            variations.push({
-                id: `var-${i}-${Date.now()}`,
-                url: imageUrl,
-                promptUsed: generatedPrompts[i],
-            });
-        } catch (error) {
-            console.error(`Error generating image ${i + 1}:`, error);
-        }
-    }
-
-    console.log(`Generated ${variations.length} variations`);
+    console.log(`Generated ${variations.length} PRO mode variations`);
     return variations;
+};
+
+// Main function that handles both modes
+export const generateThumbnailVariations = async (
+    file: File | null,
+    userPrompt: string,
+    mode: 'free' | 'pro' = 'free'
+): Promise<ThumbnailVariation[]> => {
+    if (mode === 'pro' && file) {
+        return generateProVariations(file, userPrompt);
+    }
+    return generateFreeVariations(userPrompt);
 };

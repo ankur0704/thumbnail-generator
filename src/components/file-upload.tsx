@@ -1,7 +1,7 @@
 import { cn } from "../lib/utils";
 import React, { useRef, useState } from "react";
 import { motion } from "motion/react";
-import { IconUpload, IconLoader2, IconDownload } from "@tabler/icons-react";
+import { IconUpload, IconLoader2, IconDownload, IconSparkles, IconBolt } from "@tabler/icons-react";
 import { useDropzone } from "react-dropzone";
 import { generateThumbnailVariations } from "../lib/gemini";
 import type { ThumbnailVariation } from "../lib/gemini";
@@ -38,6 +38,7 @@ export const FileUpload = ({
     const [isLoading, setIsLoading] = useState(false);
     const [variations, setVariations] = useState<ThumbnailVariation[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [mode, setMode] = useState<'free' | 'pro'>('free');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleGenerate = async () => {
@@ -46,7 +47,11 @@ export const FileUpload = ({
         setIsLoading(true);
         setError(null);
         try {
-            const results = await generateThumbnailVariations(files[0], prompt);
+            const results = await generateThumbnailVariations(
+                mode === 'pro' ? files[0] : null,
+                prompt,
+                mode
+            );
             setVariations(results);
         } catch (err: any) {
             console.error(err);
@@ -233,6 +238,43 @@ export const FileUpload = ({
                         <h3 className=" z-20 text-xl text-center font-bold text-neutral-600 mb-3">
                             What would you like to generate?
                         </h3>
+
+                        {/* Mode Toggle */}
+                        <div className="relative z-20 flex items-center justify-center gap-2 mb-4 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl">
+                            <button
+                                type="button"
+                                onClick={() => setMode('free')}
+                                className={cn(
+                                    "flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2",
+                                    mode === 'free'
+                                        ? "bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-white"
+                                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                                )}
+                            >
+                                <IconBolt className="w-4 h-4" />
+                                Free Mode
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMode('pro')}
+                                className={cn(
+                                    "flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2",
+                                    mode === 'pro'
+                                        ? "bg-gradient-to-r from-purple-500 to-pink-500 shadow-sm text-white"
+                                        : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                                )}
+                            >
+                                <IconSparkles className="w-4 h-4" />
+                                Pro Mode
+                            </button>
+                        </div>
+
+                        {mode === 'pro' && !localStorage.getItem('google_gemini_api_key') && (
+                            <p className="relative z-20 text-xs text-amber-600 dark:text-amber-400 text-center mb-2">
+                                ⚠️ Pro mode requires a Gemini API key (top right)
+                            </p>
+                        )}
+
                         <textarea
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
@@ -271,6 +313,15 @@ export const FileUpload = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {variations.map((v) => (
                             <div key={v.id} className="group relative flex flex-col gap-4">
+                                {/* Mode Badge */}
+                                <div className={cn(
+                                    "absolute top-2 left-2 z-10 px-2 py-1 rounded-full text-xs font-medium",
+                                    v.mode === 'pro'
+                                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                                        : "bg-white/90 dark:bg-neutral-800/90 text-neutral-600 dark:text-neutral-300"
+                                )}>
+                                    {v.mode === 'pro' ? '✨ Pro' : '⚡ Free'}
+                                </div>
                                 <div className="aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800 ring-1 ring-black/5 shadow-md flex items-center justify-center">
                                     {v.url ? (
                                         <>
